@@ -26,9 +26,9 @@ class ProductBadges extends Module
 
         parent::__construct();
 
-        $this->displayName = $this->l('Etiquetas de producto');
-        $this->description = $this->l('Crea etiquetas, asígnalas a productos y muéstralas en la ficha de producto.');
-        $this->confirmUninstall = $this->l('Se eliminarán todas las etiquetas y asignaciones. ¿Continuar?');
+        $this->displayName = $this->l('Product badges');
+        $this->description = $this->l('Create badges, assign them to products, and display them on the product page.');
+        $this->confirmUninstall = $this->l('All badges and product assignments will be deleted. Continue?');
 
         $this->ps_versions_compliancy = array('min' => '1.7.8.0', 'max' => _PS_VERSION_);
     }
@@ -193,9 +193,9 @@ class ProductBadges extends Module
 
         if (Tools::isSubmit('submit' . $this->name)) {
             if ($this->processConfiguration()) {
-                $output .= $this->displayConfirmation($this->l('Configuración actualizada correctamente.'));
+                $output .= $this->displayConfirmation($this->l('Settings updated successfully.'));
             } else {
-                $output .= $this->displayError($this->l('No se pudo guardar la configuración.'));
+                $output .= $this->displayError($this->l('Could not save settings.'));
             }
         }
 
@@ -258,42 +258,42 @@ class ProductBadges extends Module
             array(
                 'form' => array(
                     'legend' => array(
-                        'title' => $this->l('Configuración'),
+                        'title' => $this->l('Settings'),
                         'icon' => 'icon-cogs',
                     ),
                     'input' => array(
                         array(
                             'type' => 'switch',
-                            'label' => $this->l('Activar módulo'),
+                            'label' => $this->l('Enable module'),
                             'name' => self::CONFIG_ENABLED,
                             'is_bool' => true,
                             'values' => $this->getConfigSwitchValues(self::CONFIG_ENABLED),
                         ),
                         array(
                             'type' => 'switch',
-                            'label' => $this->l('Mostrar en listado de productos'),
+                            'label' => $this->l('Show on product list'),
                             'name' => self::CONFIG_SHOW_LIST,
                             'is_bool' => true,
                             'values' => $this->getConfigSwitchValues(self::CONFIG_SHOW_LIST),
                         ),
                         array(
                             'type' => 'switch',
-                            'label' => $this->l('Mostrar en ficha de producto'),
+                            'label' => $this->l('Show on product page'),
                             'name' => self::CONFIG_SHOW_PRODUCT,
                             'is_bool' => true,
                             'values' => $this->getConfigSwitchValues(self::CONFIG_SHOW_PRODUCT),
                         ),
                         array(
                             'type' => 'text',
-                            'label' => $this->l('Máximo de etiquetas por producto'),
+                            'label' => $this->l('Maximum badges per product'),
                             'name' => self::CONFIG_MAX_PER_PRODUCT,
                             'class' => 'fixed-width-sm',
-                            'suffix' => $this->l('etiquetas'),
-                            'desc' => $this->l('0 = sin límite. Solo valores enteros positivos.'),
+                            'suffix' => $this->l('badges'),
+                            'desc' => $this->l('0 = no limit. Positive integers only.'),
                         ),
                     ),
                     'submit' => array(
-                        'title' => $this->l('Guardar'),
+                        'title' => $this->l('Save'),
                     ),
                 ),
             ),
@@ -311,7 +311,7 @@ class ProductBadges extends Module
             array(
                 'id' => $prefix . '_on',
                 'value' => 1,
-                'label' => $this->l('Sí'),
+                'label' => $this->l('Yes'),
             ),
             array(
                 'id' => $prefix . '_off',
@@ -361,7 +361,7 @@ class ProductBadges extends Module
         $tab->class_name = 'AdminProductBadges';
         $tab->name = array();
         foreach (Language::getLanguages(true) as $lang) {
-            $tab->name[(int) $lang['id_lang']] = $this->l('Etiquetas de producto');
+            $tab->name[(int) $lang['id_lang']] = $this->l('Product badges');
         }
         $id_parent = (int) Tab::getIdFromClassName('AdminCatalog');
         $tab->id_parent = $id_parent > 0 ? $id_parent : 0;

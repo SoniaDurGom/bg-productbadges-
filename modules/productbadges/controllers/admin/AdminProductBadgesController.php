@@ -18,34 +18,34 @@ class AdminProductBadgesController extends ModuleAdminController
 
         parent::__construct();
 
-        $this->meta_title = $this->module->l('Etiquetas de producto');
-        $this->toolbar_title = $this->module->l('Etiquetas de producto');
+        $this->meta_title = $this->l('Product badges');
+        $this->toolbar_title = $this->l('Product badges');
 
         $this->fields_list = array(
             'id_badge' => array(
-                'title' => $this->module->l('ID'),
+                'title' => $this->l('ID'),
                 'align' => 'center',
                 'class' => 'fixed-width-xs',
             ),
             'name' => array(
-                'title' => $this->module->l('Nombre'),
+                'title' => $this->l('Name'),
             ),
             'bg_color' => array(
-                'title' => $this->module->l('Fondo'),
+                'title' => $this->l('Background'),
                 'callback' => 'renderColorCell',
                 'orderby' => false,
                 'search' => false,
                 'class' => 'fixed-width-lg',
             ),
             'text_color' => array(
-                'title' => $this->module->l('Color del texto'),
+                'title' => $this->l('Text color'),
                 'callback' => 'renderColorCell',
                 'orderby' => false,
                 'search' => false,
                 'class' => 'fixed-width-lg',
             ),
             'active' => array(
-                'title' => $this->module->l('Activo'),
+                'title' => $this->l('Active'),
                 'active' => 'status',
                 'type' => 'bool',
                 'align' => 'center',
@@ -56,51 +56,61 @@ class AdminProductBadgesController extends ModuleAdminController
 
         $this->fields_form = array(
             'legend' => array(
-                'title' => $this->module->l('Etiqueta'),
+                'title' => $this->l('Badge'),
                 'icon' => 'icon-certificate',
             ),
             'input' => array(
                 array(
                     'type' => 'text',
-                    'label' => $this->module->l('Nombre'),
+                    'label' => $this->l('Name'),
                     'name' => 'name',
                     'lang' => true,
                     'required' => true,
                 ),
                 array(
                     'type' => 'color',
-                    'label' => $this->module->l('Color de fondo'),
+                    'label' => $this->l('Background color'),
                     'name' => 'bg_color',
-                    'desc' => $this->module->l('Formato #RRGGBB (selector de color).'),
+                    'desc' => $this->l('Format #RRGGBB (color picker).'),
                 ),
                 array(
                     'type' => 'color',
-                    'label' => $this->module->l('Color del texto'),
+                    'label' => $this->l('Text color'),
                     'name' => 'text_color',
                 ),
                 array(
                     'type' => 'switch',
-                    'label' => $this->module->l('Activo'),
+                    'label' => $this->l('Active'),
                     'name' => 'active',
                     'is_bool' => true,
                     'values' => array(
                         array(
                             'id' => 'active_on',
                             'value' => 1,
-                            'label' => $this->module->l('Sí'),
+                            'label' => $this->l('Yes'),
                         ),
                         array(
                             'id' => 'active_off',
                             'value' => 0,
-                            'label' => $this->module->l('No'),
+                            'label' => $this->l('No'),
                         ),
                     ),
                 ),
             ),
             'submit' => array(
-                'title' => $this->module->l('Guardar'),
+                'title' => $this->l('Save'),
             ),
         );
+    }
+
+    /**
+     * @param string $string
+     *
+     * @return string
+     */
+    protected function l($string, $specific = false, $class = null, $addslashes = false, $htmlentities = true)
+    {
+        return $this->module->l($string, 'AdminProductBadgesController');
     }
 
     /**
@@ -113,13 +123,13 @@ class AdminProductBadgesController extends ModuleAdminController
         if (Tools::getIsset('assign')) {
             $this->page_header_toolbar_btn['back_to_list'] = array(
                 'href' => self::$currentIndex . '&token=' . $this->token,
-                'desc' => $this->module->l('Volver al listado de etiquetas'),
+                'desc' => $this->l('Back to badge list'),
                 'icon' => 'process-icon-back',
             );
         } else {
             $this->page_header_toolbar_btn['assign_to_products'] = array(
                 'href' => self::$currentIndex . '&assign=1&token=' . $this->token,
-                'desc' => $this->module->l('Asignar a productos'),
+                'desc' => $this->l('Assign to products'),
                 'icon' => 'process-icon-anchor',
             );
         }
@@ -131,7 +141,7 @@ class AdminProductBadgesController extends ModuleAdminController
     public function initContent()
     {
         if (!$this->viewAccess()) {
-            $this->errors[] = $this->module->l('No tienes permiso para ver esta página.');
+            $this->errors[] = $this->l('You do not have permission to view this page.');
 
             return;
         }
@@ -174,19 +184,19 @@ class AdminProductBadgesController extends ModuleAdminController
     protected function processLoadProductForAssign()
     {
         if (!$this->checkToken()) {
-            $this->errors[] = $this->module->l('Token de seguridad no válido.');
+            $this->errors[] = $this->l('Invalid security token.');
 
             return;
         }
 
         $id_product = (int) Tools::getValue('id_product');
         if (!Validate::isUnsignedId($id_product) || $id_product < 1) {
-            $this->errors[] = $this->module->l('Introduce un ID de producto válido.');
+            $this->errors[] = $this->l('Please enter a valid product ID.');
 
             return;
         }
         if (!Product::existsInDatabase($id_product, 'product')) {
-            $this->errors[] = $this->module->l('Producto no encontrado.');
+            $this->errors[] = $this->l('Product not found.');
 
             return;
         }
@@ -202,19 +212,19 @@ class AdminProductBadgesController extends ModuleAdminController
     protected function processSaveAssignment()
     {
         if (!$this->checkToken()) {
-            $this->errors[] = $this->module->l('Token de seguridad no válido.');
+            $this->errors[] = $this->l('Invalid security token.');
 
             return;
         }
 
         $id_product = (int) Tools::getValue('id_product');
         if (!Validate::isUnsignedId($id_product) || $id_product < 1) {
-            $this->errors[] = $this->module->l('Introduce un ID de producto válido.');
+            $this->errors[] = $this->l('Please enter a valid product ID.');
 
             return;
         }
         if (!Product::existsInDatabase($id_product, 'product')) {
-            $this->errors[] = $this->module->l('Producto no encontrado.');
+            $this->errors[] = $this->l('Product not found.');
 
             return;
         }
@@ -238,7 +248,7 @@ class AdminProductBadgesController extends ModuleAdminController
                 'SELECT `id_badge` FROM `' . _DB_PREFIX_ . 'product_badge` WHERE `id_badge` = ' . $id_badge
             );
             if (!$row) {
-                $this->errors[] = $this->module->l('Una o más etiquetas no son válidas.');
+                $this->errors[] = $this->l('One or more badges are invalid.');
 
                 return;
             }
@@ -322,14 +332,14 @@ class AdminProductBadgesController extends ModuleAdminController
             'badges_rows' => $badges,
             'selected_badges' => $selected,
             'product_label' => $product_label,
-            'lbl_heading' => $this->module->l('Asignar etiquetas a un producto'),
-            'lbl_product_id' => $this->module->l('ID de producto'),
-            'lbl_load' => $this->module->l('Cargar producto'),
-            'lbl_help_select' => $this->module->l('Marca las etiquetas para este producto y guarda.'),
-            'lbl_badges' => $this->module->l('Etiquetas'),
-            'lbl_no_badges' => $this->module->l('Aún no hay etiquetas. Créalas desde el listado.'),
-            'lbl_inactive' => $this->module->l('etiqueta inactiva'),
-            'lbl_save' => $this->module->l('Guardar asignaciones'),
+            'lbl_heading' => $this->l('Assign badges to a product'),
+            'lbl_product_id' => $this->l('Product ID'),
+            'lbl_load' => $this->l('Load product'),
+            'lbl_help_select' => $this->l('Select badges for this product, then save.'),
+            'lbl_badges' => $this->l('Badges'),
+            'lbl_no_badges' => $this->l('No badges yet. Create them from the list first.'),
+            'lbl_inactive' => $this->l('inactive badge'),
+            'lbl_save' => $this->l('Save assignments'),
         );
     }
 
