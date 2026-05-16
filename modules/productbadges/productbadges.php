@@ -10,6 +10,9 @@ require_once __DIR__ . '/classes/ProductBadge.php';
 
 class ProductBadges extends Module
 {
+    /** @var bool */
+    protected static $badgesRenderedOnImage = false;
+
     const CONFIG_ENABLED = 'PRODUCTBADGES_ENABLED';
     const CONFIG_SHOW_LIST = 'PRODUCTBADGES_SHOW_LIST';
     const CONFIG_SHOW_PRODUCT = 'PRODUCTBADGES_SHOW_PRODUCT';
@@ -19,7 +22,7 @@ class ProductBadges extends Module
     {
         $this->name = 'productbadges';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.1';
+        $this->version = '1.0.4';
         $this->author = 'Sonia';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -42,7 +45,10 @@ class ProductBadges extends Module
             && $this->installDb()
             && $this->installConfiguration()
             && $this->installTab()
-            && $this->registerHook('displayProductAdditionalInfo');
+            && $this->registerHook('displayProductCover')
+            && $this->registerHook('displayAfterProductThumbs')
+            && $this->registerHook('displayProductAdditionalInfo')
+            && $this->registerHook('actionFrontControllerSetMedia');
     }
 
     /**
@@ -50,7 +56,10 @@ class ProductBadges extends Module
      */
     public function uninstall()
     {
-        return $this->unregisterHook('displayProductAdditionalInfo')
+        return $this->unregisterHook('displayProductCover')
+            && $this->unregisterHook('displayAfterProductThumbs')
+            && $this->unregisterHook('displayProductAdditionalInfo')
+            && $this->unregisterHook('actionFrontControllerSetMedia')
             && $this->uninstallTab()
             && $this->uninstallConfiguration()
             && $this->uninstallDb()
@@ -76,7 +85,86 @@ class ProductBadges extends Module
             }
         }
 
-        return $this->upgradeMultilangSchema();
+        return $this->upgradeMultilangSchema()
+            && $this->upgradePositionColumn();
+    }
+
+    /**
+     * Ejecuta migraciones pendientes (instalaciones ya existentes sin actualizar módulo).
+     *
+     * @return bool
+     */
+    public function ensureDatabaseSchema()
+    {
+        static $checked = false;
+        if ($checked) {
+            return true;
+        }
+        $checked = true;
+
+        if (!$this->upgradeMultilangSchema() || !$this->upgradePositionColumn()) {
+            return false;
+        }
+
+        if (!$this->isRegisteredInHook('displayProductCover')) {
+            $this->registerHook('displayProductCover');
+        }
+        if (!$this->isRegisteredInHook('displayAfterProductThumbs')) {
+            $this->registerHook('displayAfterProductThumbs');
+        }
+        if (!$this->isRegisteredInHook('actionFrontControllerSetMedia')) {
+            $this->registerHook('actionFrontControllerSetMedia');
+        }
+
+        return true;
+    }
+
+    /**
+     * Carga CSS en ficha de producto (antes del render del hook en el body).
+     *
+     * @param array<string, mixed> $params
+     *
+     * @return void
+     */
+    public function hookActionFrontControllerSetMedia($params)
+    {
+        unset($params);
+
+        if (!isset($this->context->controller->php_self) || $this->context->controller->php_self !== 'product') {
+            return;
+        }
+
+        if (!$this->isModuleEnabledForProductPage()) {
+            return;
+        }
+
+        $this->registerProductBadgesAssets();
+    }
+
+    /**
+     * Añade columna position en instalaciones previas.
+     *
+     * @return bool
+     */
+    protected function upgradePositionColumn()
+    {
+        $db = Db::getInstance();
+        $table = _DB_PREFIX_ . 'product_badge';
+
+        $columns = $db->executeS('SHOW COLUMNS FROM `' . $table . '` LIKE \'position\'');
+        if ($columns) {
+            return true;
+        }
+
+        if ($db->execute(
+            'ALTER TABLE `' . $table . '` ADD `position` VARCHAR(5) NOT NULL DEFAULT \'left\' AFTER `active`'
+        )) {
+            return true;
+        }
+
+        return $db->execute(
+            'ALTER TABLE `' . $table . '` ADD `position` VARCHAR(5) NOT NULL DEFAULT \'left\''
+        );
     }
 
     /**
@@ -139,7 +227,8 @@ class ProductBadges extends Module
      */
     public function upgrade($version)
     {
-        return $this->upgradeMultilangSchema();
+        return $this->ensureDatabaseSchema()
+            && $this->registerHook('displayProductCover');
     }
 
     /**
@@ -189,6 +278,8 @@ class ProductBadges extends Module
      */
     public function getContent()
     {
+        $this->ensureDatabaseSchema();
+
         $output = '';
 
         if (Tools::isSubmit('submit' . $this->name)) {
@@ -390,8 +481,79 @@ class ProductBadges extends Module
      *
      * @return string
      */
+    public function hookDisplayProductCover($params)
+    {
+        return $this->renderProductBadgesOnImage($params);
+    }
+
+    /**
+     * Hook usado por el tema Classic en la zona de imagen del producto.
+     *
+     * @param array<string, mixed> $params
+     *
+     * @return string
+     */
+    public function hookDisplayAfterProductThumbs($params)
+    {
+        return $this->renderProductBadgesOnImage($params);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     *
+     * @return string
+     */
     public function hookDisplayProductAdditionalInfo($params)
     {
+        if ($this->usesImageHookForProductPage()) {
+            return '';
+        }
+
+        return $this->renderProductBadges($params, false);
+    }
+
+    /**
+     * @return bool
+     */
+    protected function usesImageHookForProductPage()
+    {
+        return $this->isRegisteredInHook('displayAfterProductThumbs')
+            || $this->isRegisteredInHook('displayProductCover');
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     *
+     * @return string
+     */
+    protected function renderProductBadgesOnImage(array $params)
+    {
+        if (self::$badgesRenderedOnImage) {
+            return '';
+        }
+
+        $html = $this->renderProductBadges($params, true);
+        if ($html !== '') {
+            self::$badgesRenderedOnImage = true;
+        }
+
+        return $html;
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     * @param bool                $onCover true = sobre imagen; false = bloque bajo ficha (fallback)
+     *
+     * @return string
+     */
+    protected function renderProductBadges(array $params, $onCover = true)
+    {
+        if (!$this->isModuleEnabledForProductPage()) {
+            return '';
+        }
+
+        $this->ensureDatabaseSchema();
+
         $id_product = $this->resolveProductIdFromHookParams($params);
         if ($id_product < 1) {
             return '';
@@ -402,11 +564,59 @@ class ProductBadges extends Module
             return '';
         }
 
+        $max = (int) $this->getConfigurationValue(self::CONFIG_MAX_PER_PRODUCT, 0);
+        if ($max > 0 && count($badges) > $max) {
+            $badges = array_slice($badges, 0, $max);
+        }
+
+        $this->registerProductBadgesAssets();
+
+        $badgesLeft = array();
+        $badgesRight = array();
+        foreach ($badges as $badge) {
+            if (isset($badge['position']) && $badge['position'] === 'right') {
+                $badgesRight[] = $badge;
+            } else {
+                $badgesLeft[] = $badge;
+            }
+        }
+
         $this->context->smarty->assign(array(
-            'product_badges' => $badges,
+            'productbadges_on_cover' => $onCover,
+            'product_badges_left' => $badgesLeft,
+            'product_badges_right' => $badgesRight,
+            'productbadges_css' => $this->getPathUri() . 'views/css/productbadges.css',
         ));
 
         return $this->fetch('module:' . $this->name . '/views/templates/hook/productbadges.tpl');
+    }
+
+    /**
+     * @return bool
+     */
+    protected function isModuleEnabledForProductPage()
+    {
+        return (int) $this->getConfigurationValue(self::CONFIG_ENABLED, 1) !== 0
+            && (int) $this->getConfigurationValue(self::CONFIG_SHOW_PRODUCT, 1) !== 0;
+    }
+
+    /**
+     * @return void
+     */
+    protected function registerProductBadgesAssets()
+    {
+        if (!isset($this->context->controller) || !is_object($this->context->controller)) {
+            return;
+        }
+
+        $this->context->controller->registerStylesheet(
+            'module-productbadges-front',
+            'modules/' . $this->name . '/views/css/productbadges.css',
+            array(
+                'media' => 'all',
+                'priority' => 150,
+            )
+        );
     }
 
     /**
@@ -416,12 +626,58 @@ class ProductBadges extends Module
      */
     protected function resolveProductIdFromHookParams(array $params)
     {
-        if (!isset($params['product'])) {
-            return 0;
+        $id = (int) Tools::getValue('id_product');
+        if ($id > 0) {
+            return $id;
         }
 
-        $product = $params['product'];
+        if (isset($params['product'])) {
+            $id = $this->extractProductId($params['product']);
+            if ($id > 0) {
+                return $id;
+            }
+        }
 
+        if (isset($this->context->controller) && is_object($this->context->controller)) {
+            if (property_exists($this->context->controller, 'id_product')) {
+                $id = (int) $this->context->controller->id_product;
+                if ($id > 0) {
+                    return $id;
+                }
+            }
+            if (method_exists($this->context->controller, 'getTemplateVarProduct')) {
+                $product = $this->context->controller->getTemplateVarProduct();
+                $id = $this->extractProductId($product);
+                if ($id > 0) {
+                    return $id;
+                }
+            }
+            if (property_exists($this->context->controller, 'php_self')
+                && $this->context->controller->php_self === 'product'
+                && property_exists($this->context->controller, 'product')
+            ) {
+                $id = $this->extractProductId($this->context->controller->product);
+                if ($id > 0) {
+                    return $id;
+                }
+            }
+        }
+
+        $product = $this->context->smarty->getTemplateVars('product');
+        if ($product) {
+            return $this->extractProductId($product);
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param mixed $product
+     *
+     * @return int
+     */
+    protected function extractProductId($product)
+    {
         if ($product instanceof Product) {
             return (int) $product->id;
         }
@@ -438,6 +694,9 @@ class ProductBadges extends Module
         if (is_object($product)) {
             if (isset($product->id_product)) {
                 return (int) $product->id_product;
+            }
+            if (isset($product->id)) {
+                return (int) $product->id;
             }
             if (method_exists($product, 'getId')) {
                 return (int) $product->getId();

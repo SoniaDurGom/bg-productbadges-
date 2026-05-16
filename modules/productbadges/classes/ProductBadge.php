@@ -23,6 +23,9 @@ class ProductBadge extends ObjectModel
     /** @var bool */
     public $active = true;
 
+    /** @var string */
+    public $position = 'left';
+
     /**
      * @see ObjectModel::$definition
      */
@@ -55,8 +58,43 @@ class ProductBadge extends ObjectModel
                 'validate' => 'isBool',
                 'required' => true,
             ),
+            'position' => array(
+                'type' => self::TYPE_STRING,
+                'validate' => 'isCleanHtml',
+                'required' => true,
+                'size' => 5,
+            ),
         ),
     );
+
+    /**
+     * @param string $position
+     *
+     * @return string
+     */
+    public static function normalizePosition($position)
+    {
+        if (!is_string($position)) {
+            return 'left';
+        }
+
+        $position = strtolower(trim($position));
+
+        return $position === 'right' ? 'right' : 'left';
+    }
+
+    /**
+     * @param bool $die
+     * @param bool $error_return
+     *
+     * @return bool|string
+     */
+    public function validateFields($die = true, $error_return = false)
+    {
+        $this->position = self::normalizePosition($this->position);
+
+        return parent::validateFields($die, $error_return);
+    }
 
     /**
      * @param int $id_badge
@@ -101,7 +139,7 @@ class ProductBadge extends ObjectModel
         $id_lang = (int) Context::getContext()->language->id;
 
         $sql = new DbQuery();
-        $sql->select('b.`id_badge`, b.`bg_color`, b.`text_color`, bl.`name`');
+        $sql->select('b.`id_badge`, b.`bg_color`, b.`text_color`, b.`position`, bl.`name`');
         $sql->from('product_badge', 'b');
         $sql->innerJoin(
             'product_badge_product',
@@ -125,6 +163,7 @@ class ProductBadge extends ObjectModel
             if (empty($row['name'])) {
                 $row['name'] = self::resolveNameForLang((int) $row['id_badge'], $id_lang);
             }
+            $row['position'] = self::normalizePosition(isset($row['position']) ? $row['position'] : 'left');
         }
         unset($row);
 

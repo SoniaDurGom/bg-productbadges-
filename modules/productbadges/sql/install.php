@@ -15,6 +15,7 @@ $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'product_badge` (
     `bg_color` VARCHAR(32) NOT NULL,
     `text_color` VARCHAR(32) NOT NULL,
     `active` TINYINT(1) UNSIGNED NOT NULL DEFAULT 1,
+    `position` VARCHAR(5) NOT NULL DEFAULT \'left\',
     PRIMARY KEY (`id_badge`)
 ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
 

@@ -18,6 +18,10 @@ class AdminProductBadgesController extends ModuleAdminController
 
         parent::__construct();
 
+        if ($this->module instanceof ProductBadges) {
+            $this->module->ensureDatabaseSchema();
+        }
+
         $this->meta_title = $this->l('Product badges');
         $this->toolbar_title = $this->l('Product badges');
 
@@ -52,6 +56,12 @@ class AdminProductBadgesController extends ModuleAdminController
                 'class' => 'fixed-width-sm',
                 'orderby' => false,
             ),
+            'position' => array(
+                'title' => $this->l('Position'),
+                'type' => 'text',
+                'align' => 'center',
+                'class' => 'fixed-width-sm',
+            ),
         );
 
         $this->fields_form = array(
@@ -77,6 +87,23 @@ class AdminProductBadgesController extends ModuleAdminController
                     'type' => 'color',
                     'label' => $this->l('Text color'),
                     'name' => 'text_color',
+                ),
+                array(
+                    'type' => 'radio',
+                    'label' => $this->l('Position'),
+                    'name' => 'position',
+                    'values' => array(
+                        array(
+                            'id' => 'position_left',
+                            'value' => 'left',
+                            'label' => $this->l('Top left'),
+                        ),
+                        array(
+                            'id' => 'position_right',
+                            'value' => 'right',
+                            'label' => $this->l('Top right'),
+                        ),
+                    ),
                 ),
                 array(
                     'type' => 'switch',
