@@ -11,6 +11,7 @@ if (!defined('_PS_VERSION_')) {
 $sql = array();
 
 $sql[] = 'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'product_badge_product`';
+$sql[] = 'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'product_badge_lang`';
 $sql[] = 'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'product_badge`';
 
 return $sql;

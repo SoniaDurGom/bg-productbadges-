@@ -14,7 +14,7 @@ class AdminProductBadgesController extends ModuleAdminController
         $this->table = 'product_badge';
         $this->className = 'ProductBadge';
         $this->identifier = 'id_badge';
-        $this->lang = false;
+        $this->lang = true;
 
         parent::__construct();
 
@@ -64,6 +64,7 @@ class AdminProductBadgesController extends ModuleAdminController
                     'type' => 'text',
                     'label' => $this->module->l('Nombre'),
                     'name' => 'name',
+                    'lang' => true,
                     'required' => true,
                 ),
                 array(
@@ -267,11 +268,23 @@ class AdminProductBadgesController extends ModuleAdminController
     {
         $id_product = (int) Tools::getValue('id_product');
 
+        $id_lang = (int) $this->context->language->id;
         $badges = Db::getInstance()->executeS(
-            'SELECT `id_badge`, `name`, `active` FROM `' . _DB_PREFIX_ . 'product_badge` ORDER BY `id_badge` ASC'
+            'SELECT b.`id_badge`, b.`active`, bl.`name`'
+            . ' FROM `' . _DB_PREFIX_ . 'product_badge` b'
+            . ' LEFT JOIN `' . _DB_PREFIX_ . 'product_badge_lang` bl'
+            . ' ON (b.`id_badge` = bl.`id_badge` AND bl.`id_lang` = ' . $id_lang . ')'
+            . ' ORDER BY b.`id_badge` ASC'
         );
         if (!$badges) {
             $badges = array();
+        } else {
+            foreach ($badges as &$badge) {
+                if (empty($badge['name'])) {
+                    $badge['name'] = ProductBadge::resolveNameForLang((int) $badge['id_badge'], $id_lang);
+                }
+            }
+            unset($badge);
         }
 
         $selected = array();

@@ -19,7 +19,7 @@ class ProductBadges extends Module
     {
         $this->name = 'productbadges';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.0';
+        $this->version = '1.0.1';
         $this->author = 'Sonia';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -76,7 +76,70 @@ class ProductBadges extends Module
             }
         }
 
-        return true;
+        return $this->upgradeMultilangSchema();
+    }
+
+    /**
+     * Migración mínima: mueve name a product_badge_lang en instalaciones previas.
+     *
+     * @return bool
+     */
+    protected function upgradeMultilangSchema()
+    {
+        $db = Db::getInstance();
+        $prefix = _DB_PREFIX_;
+
+        if (!$db->execute(
+            'CREATE TABLE IF NOT EXISTS `' . $prefix . 'product_badge_lang` (
+                `id_badge` INT UNSIGNED NOT NULL,
+                `id_lang` INT UNSIGNED NOT NULL,
+                `name` VARCHAR(255) NOT NULL,
+                PRIMARY KEY (`id_badge`, `id_lang`),
+                KEY `id_lang` (`id_lang`)
+            ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;'
+        )) {
+            return false;
+        }
+
+        $columns = $db->executeS('SHOW COLUMNS FROM `' . $prefix . 'product_badge` LIKE \'name\'');
+        if (!$columns) {
+            return true;
+        }
+
+        $badges = $db->executeS('SELECT `id_badge`, `name` FROM `' . $prefix . 'product_badge`');
+        if ($badges) {
+            $languages = Language::getLanguages(false);
+            foreach ($badges as $badge) {
+                foreach ($languages as $language) {
+                    $id_badge = (int) $badge['id_badge'];
+                    $id_lang = (int) $language['id_lang'];
+                    $exists = (int) $db->getValue(
+                        'SELECT COUNT(*) FROM `' . $prefix . 'product_badge_lang`'
+                        . ' WHERE `id_badge` = ' . $id_badge . ' AND `id_lang` = ' . $id_lang
+                    );
+                    if ($exists) {
+                        continue;
+                    }
+                    $db->insert('product_badge_lang', array(
+                        'id_badge' => $id_badge,
+                        'id_lang' => $id_lang,
+                        'name' => pSQL($badge['name']),
+                    ));
+                }
+            }
+        }
+
+        return $db->execute('ALTER TABLE `' . $prefix . 'product_badge` DROP COLUMN `name`');
+    }
+
+    /**
+     * @param string $version
+     *
+     * @return bool
+     */
+    public function upgrade($version)
+    {
+        return $this->upgradeMultilangSchema();
     }
 
     /**

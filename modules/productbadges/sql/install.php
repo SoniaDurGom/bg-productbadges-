@@ -12,11 +12,18 @@ $sql = array();
 
 $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'product_badge` (
     `id_badge` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-    `name` VARCHAR(255) NOT NULL,
     `bg_color` VARCHAR(32) NOT NULL,
     `text_color` VARCHAR(32) NOT NULL,
     `active` TINYINT(1) UNSIGNED NOT NULL DEFAULT 1,
     PRIMARY KEY (`id_badge`)
+) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
+
+$sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'product_badge_lang` (
+    `id_badge` INT UNSIGNED NOT NULL,
+    `id_lang` INT UNSIGNED NOT NULL,
+    `name` VARCHAR(255) NOT NULL,
+    PRIMARY KEY (`id_badge`, `id_lang`),
+    KEY `id_lang` (`id_lang`)
 ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
 
 $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'product_badge_product` (
