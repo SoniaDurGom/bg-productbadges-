@@ -10,12 +10,17 @@ require_once __DIR__ . '/classes/ProductBadge.php';
 
 class ProductBadges extends Module
 {
+    const CONFIG_ENABLED = 'PRODUCTBADGES_ENABLED';
+    const CONFIG_SHOW_LIST = 'PRODUCTBADGES_SHOW_LIST';
+    const CONFIG_SHOW_PRODUCT = 'PRODUCTBADGES_SHOW_PRODUCT';
+    const CONFIG_MAX_PER_PRODUCT = 'PRODUCTBADGES_MAX_PER_PRODUCT';
+
     public function __construct()
     {
         $this->name = 'productbadges';
         $this->tab = 'front_office_features';
         $this->version = '1.0.0';
-        $this->author = '';
+        $this->author = 'Sonia';
         $this->need_instance = 0;
         $this->bootstrap = true;
 
@@ -35,6 +40,7 @@ class ProductBadges extends Module
     {
         return parent::install()
             && $this->installDb()
+            && $this->installConfiguration()
             && $this->installTab()
             && $this->registerHook('displayProductAdditionalInfo');
     }
@@ -46,6 +52,7 @@ class ProductBadges extends Module
     {
         return $this->unregisterHook('displayProductAdditionalInfo')
             && $this->uninstallTab()
+            && $this->uninstallConfiguration()
             && $this->uninstallDb()
             && parent::uninstall();
     }
@@ -90,6 +97,191 @@ class ProductBadges extends Module
         }
 
         return true;
+    }
+
+    /**
+     * @return bool
+     */
+    protected function installConfiguration()
+    {
+        return Configuration::updateValue(self::CONFIG_ENABLED, 1)
+            && Configuration::updateValue(self::CONFIG_SHOW_LIST, 0)
+            && Configuration::updateValue(self::CONFIG_SHOW_PRODUCT, 1)
+            && Configuration::updateValue(self::CONFIG_MAX_PER_PRODUCT, 0);
+    }
+
+    /**
+     * @return bool
+     */
+    protected function uninstallConfiguration()
+    {
+        return Configuration::deleteByName(self::CONFIG_ENABLED)
+            && Configuration::deleteByName(self::CONFIG_SHOW_LIST)
+            && Configuration::deleteByName(self::CONFIG_SHOW_PRODUCT)
+            && Configuration::deleteByName(self::CONFIG_MAX_PER_PRODUCT);
+    }
+
+    /**
+     * @return string
+     */
+    public function getContent()
+    {
+        $output = '';
+
+        if (Tools::isSubmit('submit' . $this->name)) {
+            if ($this->processConfiguration()) {
+                $output .= $this->displayConfirmation($this->l('Configuración actualizada correctamente.'));
+            } else {
+                $output .= $this->displayError($this->l('No se pudo guardar la configuración.'));
+            }
+        }
+
+        return $output . $this->renderForm();
+    }
+
+    /**
+     * @return bool
+     */
+    protected function processConfiguration()
+    {
+        $enabled = (int) Tools::getValue(self::CONFIG_ENABLED);
+        $showList = (int) Tools::getValue(self::CONFIG_SHOW_LIST);
+        $showProduct = (int) Tools::getValue(self::CONFIG_SHOW_PRODUCT);
+        $maxPerProduct = (int) Tools::getValue(self::CONFIG_MAX_PER_PRODUCT);
+
+        if (!Validate::isUnsignedInt((string) $maxPerProduct)) {
+            return false;
+        }
+
+        return Configuration::updateValue(self::CONFIG_ENABLED, $enabled ? 1 : 0)
+            && Configuration::updateValue(self::CONFIG_SHOW_LIST, $showList ? 1 : 0)
+            && Configuration::updateValue(self::CONFIG_SHOW_PRODUCT, $showProduct ? 1 : 0)
+            && Configuration::updateValue(self::CONFIG_MAX_PER_PRODUCT, $maxPerProduct);
+    }
+
+    /**
+     * @return string
+     */
+    protected function renderForm()
+    {
+        $helper = new HelperForm();
+        $helper->show_toolbar = false;
+        $helper->module = $this;
+        $helper->default_form_language = (int) Configuration::get('PS_LANG_DEFAULT');
+        $helper->allow_employee_form_lang = (int) Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG');
+        $helper->identifier = $this->name;
+        $helper->submit_action = 'submit' . $this->name;
+        $helper->currentIndex = $this->context->link->getAdminLink('AdminModules', false)
+            . '&configure=' . $this->name
+            . '&tab_module=' . $this->tab
+            . '&module_name=' . $this->name;
+        $helper->token = Tools::getAdminTokenLite('AdminModules');
+
+        $helper->tpl_vars = array(
+            'fields_value' => $this->getConfigFormValues(),
+            'languages' => $this->context->controller->getLanguages(),
+            'id_language' => (int) $this->context->language->id,
+        );
+
+        return $helper->generateForm($this->getConfigForm());
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function getConfigForm()
+    {
+        return array(
+            array(
+                'form' => array(
+                    'legend' => array(
+                        'title' => $this->l('Configuración'),
+                        'icon' => 'icon-cogs',
+                    ),
+                    'input' => array(
+                        array(
+                            'type' => 'switch',
+                            'label' => $this->l('Activar módulo'),
+                            'name' => self::CONFIG_ENABLED,
+                            'is_bool' => true,
+                            'values' => $this->getConfigSwitchValues(self::CONFIG_ENABLED),
+                        ),
+                        array(
+                            'type' => 'switch',
+                            'label' => $this->l('Mostrar en listado de productos'),
+                            'name' => self::CONFIG_SHOW_LIST,
+                            'is_bool' => true,
+                            'values' => $this->getConfigSwitchValues(self::CONFIG_SHOW_LIST),
+                        ),
+                        array(
+                            'type' => 'switch',
+                            'label' => $this->l('Mostrar en ficha de producto'),
+                            'name' => self::CONFIG_SHOW_PRODUCT,
+                            'is_bool' => true,
+                            'values' => $this->getConfigSwitchValues(self::CONFIG_SHOW_PRODUCT),
+                        ),
+                        array(
+                            'type' => 'text',
+                            'label' => $this->l('Máximo de etiquetas por producto'),
+                            'name' => self::CONFIG_MAX_PER_PRODUCT,
+                            'class' => 'fixed-width-sm',
+                            'suffix' => $this->l('etiquetas'),
+                            'desc' => $this->l('0 = sin límite. Solo valores enteros positivos.'),
+                        ),
+                    ),
+                    'submit' => array(
+                        'title' => $this->l('Guardar'),
+                    ),
+                ),
+            ),
+        );
+    }
+
+    /**
+     * @param string $prefix
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function getConfigSwitchValues($prefix)
+    {
+        return array(
+            array(
+                'id' => $prefix . '_on',
+                'value' => 1,
+                'label' => $this->l('Sí'),
+            ),
+            array(
+                'id' => $prefix . '_off',
+                'value' => 0,
+                'label' => $this->l('No'),
+            ),
+        );
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    protected function getConfigFormValues()
+    {
+        return array(
+            self::CONFIG_ENABLED => (int) $this->getConfigurationValue(self::CONFIG_ENABLED, 1),
+            self::CONFIG_SHOW_LIST => (int) $this->getConfigurationValue(self::CONFIG_SHOW_LIST, 0),
+            self::CONFIG_SHOW_PRODUCT => (int) $this->getConfigurationValue(self::CONFIG_SHOW_PRODUCT, 1),
+            self::CONFIG_MAX_PER_PRODUCT => (int) $this->getConfigurationValue(self::CONFIG_MAX_PER_PRODUCT, 0),
+        );
+    }
+
+    /**
+     * @param string $key
+     * @param int    $default
+     *
+     * @return int
+     */
+    protected function getConfigurationValue($key, $default)
+    {
+        $value = Configuration::get($key);
+
+        return $value === false ? $default : (int) $value;
     }
 
     /**

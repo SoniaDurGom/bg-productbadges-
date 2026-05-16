@@ -7,7 +7,7 @@
     <author><![CDATA[]]></author>
     <tab><![CDATA[front_office_features]]></tab>
     <confirmUninstall><![CDATA[Se eliminarán todas las etiquetas y asignaciones. ¿Continuar?]]></confirmUninstall>
-    <is_configurable>0</is_configurable>
+    <is_configurable>1</is_configurable>
     <need_instance>0</need_instance>
     <limited_countries></limited_countries>
 </module>
