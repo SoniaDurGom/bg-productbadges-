@@ -175,7 +175,12 @@ class ProductBadge extends ObjectModel
      */
     public function delete()
     {
+        if ((int) $this->id_badge < 1) {
+            return false;
+        }
+
         Db::getInstance()->delete('product_badge_product', '`id_badge` = ' . (int) $this->id_badge);
+        Db::getInstance()->delete('product_badge_lang', '`id_badge` = ' . (int) $this->id_badge);
 
         return parent::delete();
     }

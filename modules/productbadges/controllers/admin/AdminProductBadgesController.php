@@ -128,6 +128,42 @@ class AdminProductBadgesController extends ModuleAdminController
                 'title' => $this->l('Save'),
             ),
         );
+
+        $this->addRowAction('edit');
+        $this->addRowAction('delete');
+
+        $this->bulk_actions = array(
+            'delete' => array(
+                'text' => $this->l('Delete selected'),
+                'icon' => 'icon-trash',
+            ),
+        );
+    }
+
+    /**
+     * @param bool $isNewTheme
+     *
+     * @return void
+     */
+    public function setMedia($isNewTheme = false)
+    {
+        parent::setMedia($isNewTheme);
+
+        if (Tools::getIsset('assign') || in_array($this->display, array('edit', 'add', 'view'), true)) {
+            return;
+        }
+
+        $this->addJS($this->module->getPathUri() . 'views/js/admin-bulk-delete.js');
+        Media::addJsDef(array(
+            'productBadgesBulkDelete' => array(
+                'listId' => $this->table,
+                'confirmTitle' => $this->trans('Delete selection', array(), 'Admin.Notifications.Warning'),
+                'confirmMessage' => $this->l('Delete selected badges? Product assignments will be removed.'),
+                'confirmButton' => $this->trans('Delete', array(), 'Admin.Actions'),
+                'cancelButton' => $this->trans('Cancel', array(), 'Admin.Actions'),
+                'emptySelection' => $this->l('You must select at least one badge to delete.'),
+            ),
+        ));
     }
 
     /**
@@ -154,6 +190,18 @@ class AdminProductBadgesController extends ModuleAdminController
                 'icon' => 'process-icon-back',
             );
         } else {
+            $id_badge = (int) Tools::getValue($this->identifier);
+            if ($this->display === 'edit' && $id_badge > 0) {
+                $this->page_header_toolbar_btn['delete'] = array(
+                    'href' => self::$currentIndex
+                        . '&' . $this->identifier . '=' . $id_badge
+                        . '&delete' . $this->table
+                        . '&token=' . $this->token,
+                    'desc' => $this->l('Delete'),
+                    'icon' => 'process-icon-delete',
+                );
+            }
+
             $this->page_header_toolbar_btn['assign_to_products'] = array(
                 'href' => self::$currentIndex . '&assign=1&token=' . $this->token,
                 'desc' => $this->l('Assign to products'),
@@ -203,6 +251,77 @@ class AdminProductBadgesController extends ModuleAdminController
         }
 
         return parent::postProcess();
+    }
+
+    /**
+     * @return ProductBadge|bool
+     */
+    public function processDelete()
+    {
+        $id_badge = (int) Tools::getValue($this->identifier);
+        if ($id_badge < 1) {
+            $this->errors[] = $this->l('Badge not found.');
+
+            return false;
+        }
+
+        $badge = new ProductBadge($id_badge);
+        if (!Validate::isLoadedObject($badge)) {
+            $this->errors[] = $this->l('Badge not found.');
+
+            return false;
+        }
+
+        if (!$badge->delete()) {
+            $this->errors[] = $this->l('Could not delete the badge.');
+
+            return false;
+        }
+
+        Tools::redirectAdmin(self::$currentIndex . '&conf=1&token=' . $this->token);
+    }
+
+    /**
+     * @return bool
+     */
+    protected function processBulkDelete()
+    {
+        if (!is_array($this->boxes) || empty($this->boxes)) {
+            $this->errors[] = $this->l('You must select at least one badge to delete.');
+
+            return false;
+        }
+
+        $deleted = 0;
+        foreach ($this->boxes as $id_badge) {
+            $id_badge = (int) $id_badge;
+            if ($id_badge < 1) {
+                continue;
+            }
+
+            $badge = new ProductBadge($id_badge);
+            if (!Validate::isLoadedObject($badge)) {
+                continue;
+            }
+
+            if ($badge->delete()) {
+                ++$deleted;
+            } else {
+                $this->errors[] = $this->l('Could not delete badge ID') . ' ' . $id_badge;
+            }
+        }
+
+        if ($deleted < 1 && empty($this->errors)) {
+            $this->errors[] = $this->l('No badges were deleted.');
+
+            return false;
+        }
+
+        if (!empty($this->errors) && $deleted > 0) {
+            Tools::redirectAdmin(self::$currentIndex . '&conf=4&token=' . $this->token);
+        }
+
+        Tools::redirectAdmin(self::$currentIndex . '&conf=1&token=' . $this->token);
     }
 
     /**
