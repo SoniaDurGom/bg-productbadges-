@@ -146,6 +146,17 @@ class ProductBadge extends ObjectModel
             'bp',
             'bp.`id_badge` = b.`id_badge` AND bp.`id_product` = ' . $id_product
         );
+
+        $context = Context::getContext();
+        $id_shop = isset($context->shop) ? (int) $context->shop->id : 0;
+        if ($id_shop > 0 && Shop::isFeatureActive()) {
+            $sql->innerJoin(
+                'product_shop',
+                'ps',
+                'ps.`id_product` = bp.`id_product` AND ps.`id_shop` = ' . $id_shop . ' AND ps.`active` = 1'
+            );
+        }
+
         $sql->leftJoin(
             'product_badge_lang',
             'bl',

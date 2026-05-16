@@ -22,12 +22,17 @@ class ProductBadges extends Module
     {
         $this->name = 'productbadges';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.6';
+        $this->version = '1.0.7';
         $this->author = 'Sonia';
         $this->need_instance = 0;
         $this->bootstrap = true;
 
         parent::__construct();
+
+        if (property_exists($this, 'multistoreCompatibility')
+            && defined(Module::class . '::MULTISTORE_COMPATIBILITY_PARTIAL')) {
+            $this->multistoreCompatibility = Module::MULTISTORE_COMPATIBILITY_PARTIAL;
+        }
 
         $this->displayName = $this->l('Product badges');
         $this->description = $this->l('Create badges, assign them to products, and display them on the product page.');
@@ -240,7 +245,8 @@ class ProductBadges extends Module
     {
         return $this->ensureDatabaseSchema()
             && $this->registerHook('displayProductCover')
-            && $this->registerHook('displayProductListReviews');
+            && $this->registerHook('displayProductListReviews')
+            && $this->ensureConfigurationForAllShops();
     }
 
     /**
@@ -268,10 +274,67 @@ class ProductBadges extends Module
      */
     protected function installConfiguration()
     {
-        return Configuration::updateValue(self::CONFIG_ENABLED, 1)
-            && Configuration::updateValue(self::CONFIG_SHOW_LIST, 0)
-            && Configuration::updateValue(self::CONFIG_SHOW_PRODUCT, 1)
-            && Configuration::updateValue(self::CONFIG_MAX_PER_PRODUCT, 0);
+        $defaults = array(
+            self::CONFIG_ENABLED => 1,
+            self::CONFIG_SHOW_LIST => 0,
+            self::CONFIG_SHOW_PRODUCT => 1,
+            self::CONFIG_MAX_PER_PRODUCT => 0,
+        );
+
+        $success = true;
+        foreach ($this->getConfigurationShopIds() as $idShop) {
+            foreach ($defaults as $key => $value) {
+                $success = $success && Configuration::updateValue($key, $value, false, null, (int) $idShop);
+            }
+        }
+
+        return $success;
+    }
+
+    /**
+     * Crea valores por tienda en instalaciones multitienda ya existentes.
+     *
+     * @return bool
+     */
+    protected function ensureConfigurationForAllShops()
+    {
+        if (!Shop::isFeatureActive()) {
+            return true;
+        }
+
+        $defaults = array(
+            self::CONFIG_ENABLED => 1,
+            self::CONFIG_SHOW_LIST => 0,
+            self::CONFIG_SHOW_PRODUCT => 1,
+            self::CONFIG_MAX_PER_PRODUCT => 0,
+        );
+
+        $success = true;
+        foreach ($this->getConfigurationShopIds() as $idShop) {
+            foreach ($defaults as $key => $default) {
+                $current = Configuration::get($key, null, null, (int) $idShop);
+                if ($current === false || $current === null || $current === '') {
+                    $success = $success && Configuration::updateValue($key, $default, false, null, (int) $idShop);
+                }
+            }
+        }
+
+        return $success;
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    protected function getConfigurationShopIds()
+    {
+        $shopIds = Shop::getShops(false, null, true);
+        if (!is_array($shopIds) || empty($shopIds)) {
+            $defaultShop = (int) Configuration::get('PS_SHOP_DEFAULT');
+
+            return $defaultShop > 0 ? array($defaultShop) : array(1);
+        }
+
+        return array_map('intval', $shopIds);
     }
 
     /**
@@ -319,10 +382,10 @@ class ProductBadges extends Module
             return false;
         }
 
-        return Configuration::updateValue(self::CONFIG_ENABLED, $enabled ? 1 : 0)
-            && Configuration::updateValue(self::CONFIG_SHOW_LIST, $showList ? 1 : 0)
-            && Configuration::updateValue(self::CONFIG_SHOW_PRODUCT, $showProduct ? 1 : 0)
-            && Configuration::updateValue(self::CONFIG_MAX_PER_PRODUCT, $maxPerProduct);
+        return $this->updateConfigurationValue(self::CONFIG_ENABLED, $enabled ? 1 : 0)
+            && $this->updateConfigurationValue(self::CONFIG_SHOW_LIST, $showList ? 1 : 0)
+            && $this->updateConfigurationValue(self::CONFIG_SHOW_PRODUCT, $showProduct ? 1 : 0)
+            && $this->updateConfigurationValue(self::CONFIG_MAX_PER_PRODUCT, $maxPerProduct);
     }
 
     /**
@@ -439,15 +502,54 @@ class ProductBadges extends Module
 
     /**
      * @param string $key
+     * @param mixed  $value
+     *
+     * @return bool
+     */
+    protected function updateConfigurationValue($key, $value)
+    {
+        if (Shop::isFeatureActive() && Shop::getContext() === Shop::CONTEXT_ALL) {
+            $success = true;
+            foreach ($this->getConfigurationShopIds() as $idShop) {
+                $success = $success && Configuration::updateValue($key, $value, false, null, (int) $idShop);
+            }
+
+            return $success;
+        }
+
+        return Configuration::updateValue(
+            $key,
+            $value,
+            false,
+            (int) Shop::getContextShopGroupID(true),
+            (int) Shop::getContextShopID(true)
+        );
+    }
+
+    /**
+     * Lee configuración según tienda/grupo del contexto activo (FO o BO).
+     *
+     * @param string $key
      * @param int    $default
      *
      * @return int
      */
     protected function getConfigurationValue($key, $default)
     {
-        $value = Configuration::get($key);
+        $idShopGroup = (int) Shop::getContextShopGroupID(true);
+        $idShop = (int) Shop::getContextShopID(true);
 
-        return $value === false ? $default : (int) $value;
+        $value = Configuration::get($key, null, $idShopGroup, $idShop);
+
+        if (($value === false || $value === null || $value === '') && Shop::isFeatureActive() && $idShop > 0) {
+            $value = Configuration::get($key, null, 0, 0);
+        }
+
+        if ($value === false || $value === null || $value === '') {
+            return (int) $default;
+        }
+
+        return (int) $value;
     }
 
     /**
