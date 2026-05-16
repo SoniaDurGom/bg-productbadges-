@@ -22,7 +22,7 @@ class ProductBadges extends Module
     {
         $this->name = 'productbadges';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.4';
+        $this->version = '1.0.6';
         $this->author = 'Sonia';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -48,6 +48,7 @@ class ProductBadges extends Module
             && $this->registerHook('displayProductCover')
             && $this->registerHook('displayAfterProductThumbs')
             && $this->registerHook('displayProductAdditionalInfo')
+            && $this->registerHook('displayProductListReviews')
             && $this->registerHook('actionFrontControllerSetMedia');
     }
 
@@ -59,6 +60,7 @@ class ProductBadges extends Module
         return $this->unregisterHook('displayProductCover')
             && $this->unregisterHook('displayAfterProductThumbs')
             && $this->unregisterHook('displayProductAdditionalInfo')
+            && $this->unregisterHook('displayProductListReviews')
             && $this->unregisterHook('actionFrontControllerSetMedia')
             && $this->uninstallTab()
             && $this->uninstallConfiguration()
@@ -115,6 +117,9 @@ class ProductBadges extends Module
         if (!$this->isRegisteredInHook('actionFrontControllerSetMedia')) {
             $this->registerHook('actionFrontControllerSetMedia');
         }
+        if (!$this->isRegisteredInHook('displayProductListReviews')) {
+            $this->registerHook('displayProductListReviews');
+        }
 
         return true;
     }
@@ -130,15 +135,21 @@ class ProductBadges extends Module
     {
         unset($params);
 
-        if (!isset($this->context->controller->php_self) || $this->context->controller->php_self !== 'product') {
+        if (!isset($this->context->controller->php_self)) {
             return;
         }
 
-        if (!$this->isModuleEnabledForProductPage()) {
+        $phpSelf = $this->context->controller->php_self;
+
+        if ($phpSelf === 'product' && $this->isModuleEnabledForProductPage()) {
+            $this->registerProductBadgesAssets();
+
             return;
         }
 
-        $this->registerProductBadgesAssets();
+        if ($this->isProductListController($phpSelf) && $this->isModuleEnabledForProductList()) {
+            $this->registerProductBadgesAssets();
+        }
     }
 
     /**
@@ -228,7 +239,8 @@ class ProductBadges extends Module
     public function upgrade($version)
     {
         return $this->ensureDatabaseSchema()
-            && $this->registerHook('displayProductCover');
+            && $this->registerHook('displayProductCover')
+            && $this->registerHook('displayProductListReviews');
     }
 
     /**
@@ -513,6 +525,18 @@ class ProductBadges extends Module
     }
 
     /**
+     * Listados (categoría, home, búsqueda) — tema Classic: dentro de thumbnail-container.
+     *
+     * @param array<string, mixed> $params
+     *
+     * @return string
+     */
+    public function hookDisplayProductListReviews($params)
+    {
+        return $this->renderProductBadgesInList($params);
+    }
+
+    /**
      * @return bool
      */
     protected function usesImageHookForProductPage()
@@ -542,6 +566,20 @@ class ProductBadges extends Module
 
     /**
      * @param array<string, mixed> $params
+     *
+     * @return string
+     */
+    protected function renderProductBadgesInList(array $params)
+    {
+        if (!$this->isModuleEnabledForProductList()) {
+            return '';
+        }
+
+        return $this->renderProductBadgesHtml($params, true, 'list');
+    }
+
+    /**
+     * @param array<string, mixed> $params
      * @param bool                $onCover true = sobre imagen; false = bloque bajo ficha (fallback)
      *
      * @return string
@@ -552,6 +590,18 @@ class ProductBadges extends Module
             return '';
         }
 
+        return $this->renderProductBadgesHtml($params, $onCover, 'product');
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     * @param bool                $onCover
+     * @param string              $placement list|product
+     *
+     * @return string
+     */
+    protected function renderProductBadgesHtml(array $params, $onCover, $placement = 'product')
+    {
         $this->ensureDatabaseSchema();
 
         $id_product = $this->resolveProductIdFromHookParams($params);
@@ -583,8 +633,11 @@ class ProductBadges extends Module
 
         $this->context->smarty->assign(array(
             'productbadges_on_cover' => $onCover,
+            'productbadges_placement' => $placement === 'list' ? 'list' : 'product',
             'product_badges_left' => $badgesLeft,
             'product_badges_right' => $badgesRight,
+            'productbadges_left_count' => count($badgesLeft),
+            'productbadges_right_count' => count($badgesRight),
             'productbadges_css' => $this->getPathUri() . 'views/css/productbadges.css',
         ));
 
@@ -594,10 +647,37 @@ class ProductBadges extends Module
     /**
      * @return bool
      */
+    protected function isModuleEnabled()
+    {
+        return (int) $this->getConfigurationValue(self::CONFIG_ENABLED, 1) !== 0;
+    }
+
+    /**
+     * @return bool
+     */
     protected function isModuleEnabledForProductPage()
     {
-        return (int) $this->getConfigurationValue(self::CONFIG_ENABLED, 1) !== 0
+        return $this->isModuleEnabled()
             && (int) $this->getConfigurationValue(self::CONFIG_SHOW_PRODUCT, 1) !== 0;
+    }
+
+    /**
+     * @return bool
+     */
+    protected function isModuleEnabledForProductList()
+    {
+        return $this->isModuleEnabled()
+            && (int) $this->getConfigurationValue(self::CONFIG_SHOW_LIST, 0) !== 0;
+    }
+
+    /**
+     * @param string $phpSelf
+     *
+     * @return bool
+     */
+    protected function isProductListController($phpSelf)
+    {
+        return in_array($phpSelf, array('category', 'index', 'search'), true);
     }
 
     /**
@@ -626,16 +706,16 @@ class ProductBadges extends Module
      */
     protected function resolveProductIdFromHookParams(array $params)
     {
-        $id = (int) Tools::getValue('id_product');
-        if ($id > 0) {
-            return $id;
-        }
-
         if (isset($params['product'])) {
             $id = $this->extractProductId($params['product']);
             if ($id > 0) {
                 return $id;
             }
+        }
+
+        $id = (int) Tools::getValue('id_product');
+        if ($id > 0) {
+            return $id;
         }
 
         if (isset($this->context->controller) && is_object($this->context->controller)) {
